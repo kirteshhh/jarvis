@@ -1,5 +1,5 @@
 # jarvis
-
+!!click on raw!!
 api dalna padega we dont have it 
 ye download kar lena 
 pip install SpeechRecognition       # 🎤 For voice recognition from mic
