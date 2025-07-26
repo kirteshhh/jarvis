@@ -1,0 +1,223 @@
+import speech_recognition as sr
+import webbrowser
+import datetime
+import os
+import pyautogui
+import requests
+import tempfile
+import json
+import pygame
+import threading
+import edge_tts
+import asyncio
+from serpapi import GoogleSearch
+
+# ========== CONFIG ==========
+
+DEEPSEEK_API_KEY = ""
+DEEPSEEK_API_URL = ""
+DEEPSEEK_MODEL = ""
+SERP_API_KEY = ""
+
+LANGUAGES = {
+    'english': 'en', 'hindi': 'hi', 'marathi': 'mr', 'spanish': 'es',
+    'japanese': 'ja', 'russian': 'ru', 'chinese': 'zh-cn'
+}
+
+# Male voice mapping for Edge TTS
+VOICE_MAPPING = {
+    'en': 'en-GB-RyanNeural',    # British English male
+    'hi': 'hi-IN-MadhurNeural',  # Hindi male
+    'mr': 'mr-IN-ManoharNeural', # Marathi male
+    'es': 'es-ES-AlvaroNeural',  # Spanish male
+    'ja': 'ja-JP-KeitaNeural',   # Japanese male
+    'ru': 'ru-RU-DmitryNeural',  # Russian male
+    'zh-cn': 'zh-CN-YunxiNeural' # Chinese male
+}
+
+# ========== GLOBALS ==========
+
+recognizer = sr.Recognizer()
+current_lang = 'en'
+stop_speaking_flag = False
+speak_thread = None
+is_speaking = False
+speak_lock = threading.Lock()
+
+# Initialize pygame mixer once
+pygame.mixer.init()
+
+# ========== SPEECH OUTPUT ==========
+
+async def generate_voice(text, voice_name, output_file):
+    communicate = edge_tts.Communicate(text=text, voice=voice_name)
+    await communicate.save(output_file)
+
+def speak(text, lang='en'):
+    global stop_speaking_flag, is_speaking, speak_thread
+
+    def speak_worker():
+        global is_speaking
+        try:
+            is_speaking = True
+            print(f"🗣️ Jarvis ({lang}): {text}")
+            
+            voice = VOICE_MAPPING.get(lang, 'en-GB-RyanNeural')
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+                mp3_path = fp.name
+            
+            # Run async function in a thread
+            asyncio.run(generate_voice(text, voice, mp3_path))
+
+            with speak_lock:
+                pygame.mixer.music.load(mp3_path)
+                pygame.mixer.music.play()
+
+                while pygame.mixer.music.get_busy():
+                    pass
+
+                pygame.mixer.music.unload()
+                os.remove(mp3_path)
+                
+        except Exception as e:
+            print("❌ TTS Error:", e)
+        finally:
+            is_speaking = False
+
+    if speak_thread and speak_thread.is_alive():
+        pygame.mixer.music.stop()
+        speak_thread.join()
+
+    speak_thread = threading.Thread(target=speak_worker)
+    speak_thread.start()
+
+# ========== LISTENING ==========
+
+def listen():
+    global is_speaking
+    if is_speaking:
+        return ""
+
+    with sr.Microphone() as source:
+        recognizer.adjust_for_ambient_noise(source, duration=0.5)
+        print("🎙️ Listening...")
+        try:
+            audio = recognizer.listen(source, timeout=5)
+            text = recognizer.recognize_google(audio).lower()
+            print(f"👂 Heard: {text}")
+            return text
+        except:
+            return ""
+
+# ========== AI + WEB ==========
+
+def ask_deepseek(query):
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": DEEPSEEK_MODEL,
+        "messages": [{
+            "role": "system",
+            "content": "Respond in 1-2 short, spoken sentences. Never write lists or code."
+        }, {
+            "role": "user",
+            "content": query
+        }]
+    }
+    try:
+        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data).json()
+        return response['choices'][0]['message']['content']
+    except Exception as e:
+        print("❌ DeepSeek API Error:", e)
+        return "I couldn't process that."
+
+def search_serp(query):
+    try:
+        params = {
+            "q": query,
+            "api_key": SERP_API_KEY,
+            "engine": "google",
+        }
+        search = GoogleSearch(params)
+        result = search.get_dict()
+        if "answer_box" in result and "answer" in result["answer_box"]:
+            return result["answer_box"]["answer"]
+        elif "organic_results" in result and result["organic_results"]:
+            return result["organic_results"][0]["snippet"]
+        else:
+            return "Sorry, I couldn't find anything."
+    except Exception as e:
+        print("❌ SERP API Error:", e)
+        return "Search failed."
+
+# ========== COMMAND HANDLER ==========
+
+def execute_command(query, lang='en'):
+    if "open" in query:
+        if 'chrome' in query:
+            os.system("start chrome")
+            speak("Chrome is now open", lang)
+        elif 'notepad' in query:
+            os.system("start notepad")
+            speak("Notepad launched", lang)
+        elif 'vs code' in query:
+            os.system("code")
+            speak("Opening VS Code", lang)
+        else:
+            speak("I don't know that app", lang)
+        return
+
+    if "time" in query:
+        speak(datetime.datetime.now().strftime("It's %I:%M %p"), lang)
+        return
+
+    if "screenshot" in query:
+        pyautogui.screenshot().save("screenshot.png")
+        speak("Screenshot taken.", lang)
+        return
+
+    if "shutdown" in query:
+        speak("Shutting down in 5 seconds!", lang)
+        os.system("shutdown /s /t 5")
+        return
+
+    if "search" in query or "latest" in query or "news" in query or "who is" in query or "what is" in query:
+        speak("Searching the internet...", lang)
+        response = search_serp(query)
+    else:
+        response = ask_deepseek(query)
+
+    speak(response, lang)
+
+# ========== MAIN LOOP ==========
+
+if __name__ == "__main__":
+    speak("Jarvis is activated.", current_lang)
+
+    while True:
+        try:
+            query = listen()
+            if not query:
+                continue
+
+            if "stop" in query or "exit" in query:
+                speak("Goodbye!", current_lang)
+                break
+
+            for lang in LANGUAGES:
+                if f"respond in {lang}" in query:
+                    current_lang = LANGUAGES[lang]
+                    speak(f"Language switched to {lang}", current_lang)
+                    break
+
+            execute_command(query, current_lang)
+
+        except KeyboardInterrupt:
+            speak("Emergency shutdown.")
+            break
+        except Exception as e:
+            print("❌ Critical Error:", e)
+            speak("Something went wrong.")
