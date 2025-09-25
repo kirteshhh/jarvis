@@ -1,13 +1,22 @@
-# jarvis
-!!click on raw!!
-api dalna padega we dont have it 
-ye download kar lena 
-pip install SpeechRecognition       # 🎤 For voice recognition from mic
-pip install pygame                  # 🔊 For audio playback of TTS responses
-pip install edge-tts                # 🗣️ For Microsoft Edge neural male voices (multilingual)
-pip install pyautogui               # 🖱️ For taking screenshots and controlling mouse/keyboard
-pip install requests                # 🌐 For making API requests to DeepSeek or other services
-pip install serpapi                 # 🔍 For Google search integration via SerpAPI
-pip install pipwin                  # 📦 For installing pyaudio on Windows easily
-pipwin install pyaudio              # 🎙️ Required for SpeechRecognition to access mic
-but download karne se phele chat gpt se puch lena ki kya kya download karna hai
+Jarvis Personal Assistant
+
+Jarvis is an AI-powered personal assistant built using Python and APIs. Despite having no prior experience with Python, I developed this project by learning from online resources and using ChatGPT for guidance. Jarvis can respond to voice commands, perform tasks, and fetch information using AI-driven responses, demonstrating problem-solving, adaptability, and the ability to step out of my comfort zone.
+
+Features:
+
+Voice command recognition
+
+AI-driven responses via API
+
+Task automation
+
+Information retrieval
+
+Tech Used:
+
+Python
+
+APIs for AI response integration
+
+Learning Outcome:
+This project helped me quickly grasp Python basics, work with APIs, and apply knowledge to create a practical, interactive assistant.
